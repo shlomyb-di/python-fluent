@@ -95,6 +95,7 @@ class FluentResourceLoader(AbstractResourceLoader):
         Create a resource loader. The roots may be a string for a single
         location on disk, or a list of strings.
         """
+        self.in_memory = True
         self.roots = [roots] if isinstance(roots, str) else roots
         from fluent.runtime import FluentResource
         self.Resource = FluentResource
@@ -106,11 +107,22 @@ class FluentResourceLoader(AbstractResourceLoader):
 
     def resources(self, locale, resource_ids):
         resources = []
-        for resource_id in resource_ids:
-            content = self.get_translation_file(resource_id)
-            resources.append(self.Resource(content))
-        if resources:
-            yield resources
+        if self.in_memory is True:
+            for resource_id in resource_ids:
+                content = self.get_translation_file(resource_id)
+                resources.append(self.Resource(content))
+            if resources:
+                yield resources
+        else:
+            for root in self.roots:
+                for resource_id in resource_ids:
+                    path = self.localize_path(os.path.join(root, resource_id), locale)
+                    if not os.path.isfile(path):
+                        continue
+                    content = codecs.open(path, 'r', 'utf-8').read()
+                    resources.append(self.Resource(content))
+                if resources:
+                    yield
 
     def localize_path(self, path, locale):
         return path.format(locale=locale)
