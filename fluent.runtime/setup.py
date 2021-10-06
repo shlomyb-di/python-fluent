@@ -33,6 +33,8 @@ setup(name='fluent.runtime',
           'babel',
           'pytz',
           'six',
+          'redis==3.5.3',
+
       ],
       test_suite='tests',
       )
