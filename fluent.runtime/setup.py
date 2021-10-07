@@ -34,6 +34,7 @@ setup(name='fluent.runtime',
           'pytz',
           'six',
           'redis==3.5.3',
+          'google-cloud-storage==1.39.0'
 
       ],
       test_suite='tests',

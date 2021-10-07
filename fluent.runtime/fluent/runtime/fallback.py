@@ -90,24 +90,24 @@ class FluentResourceLoader(AbstractResourceLoader):
     This loader does not support loading resources for one bundle from
     different roots.
     """
-    def __init__(self, roots, in_memory=None):
+    def __init__(self, roots):
         """
         Create a resource loader. The roots may be a string for a single
         location on disk, or a list of strings.
         """
-        self.in_memory = True
         self.roots = [roots] if isinstance(roots, str) else roots
         from fluent.runtime import FluentResource
         self.Resource = FluentResource
-        if in_memory is True:
-            self.load_env_vars()
+        self.load_env_vars()
+        if self.in_memory is True:
+            self.load_in_memnory_env_vars()
             self.redis_client = redis.client.Redis(
-                host=self.REDIS_HOST, port=self.REDIS_PORT, db=self.REDIS_TRANSLATION_DB
+                host=self.REDIS_HOST, port=self.REDIS_PORT, db=self.TRANSLATION_REDIS_DB
             )
 
     def resources(self, locale, resource_ids):
-        resources = []
         if self.in_memory is True:
+            resources = []
             for resource_id in resource_ids:
                 content = self.get_translation_file(resource_id)
                 resources.append(self.Resource(content))
@@ -115,6 +115,7 @@ class FluentResourceLoader(AbstractResourceLoader):
                 yield resources
         else:
             for root in self.roots:
+                resources = []
                 for resource_id in resource_ids:
                     path = self.localize_path(os.path.join(root, resource_id), locale)
                     if not os.path.isfile(path):
@@ -122,18 +123,21 @@ class FluentResourceLoader(AbstractResourceLoader):
                     content = codecs.open(path, 'r', 'utf-8').read()
                     resources.append(self.Resource(content))
                 if resources:
-                    yield
+                    yield resources
 
     def localize_path(self, path, locale):
         return path.format(locale=locale)
 
     def load_env_vars(self):
         self.DI_LANG = os.environ['DI_LANG']
+        self.in_memory = bool(os.environ['TRANSLATION_IN_MEMORY_MODE'])
+
+    def load_in_memnory_env_vars(self):
         self.REDIS_HOST = os.environ['REDIS_HOST']
         self.REDIS_PORT = os.environ['REDIS_PORT']
-        self.REDIS_TRANSLATION_DB = os.environ['REDIS_TRANSLATION_DB']
-        self.REDIS_TRANSLATION_KEY = os.environ['REDIS_TRANSLATION_KEY']
-        self.REDIS_TRANSLATION_TTL_IN_SECONDS = os.environ['REDIS_TRANSLATION_TTL_IN_SECONDS']
+        self.TRANSLATION_REDIS_DB = os.environ['TRANSLATION_REDIS_DB']
+        self.TRANSLATION_REDIS_KEY = os.environ['TRANSLATION_REDIS_KEY']
+        self.TRANSLATION_REDIS_TTL_IN_SECONDS = os.environ['TRANSLATION_REDIS_TTL_IN_SECONDS']
 
     def get_translation_file(self, file_name: str) -> str:
         """
@@ -142,17 +146,21 @@ class FluentResourceLoader(AbstractResourceLoader):
         :param file_name:  translation file name
         :return: translation data
         """
-        file_key = self.REDIS_TRANSLATION_KEY.format(di_lang=self.DI_LANG, file_name=file_name)
-        data = self.redis_client.get(file_key)
-        if data is None:
+        if self.in_memory is True:
+            file_key = self.TRANSLATION_REDIS_KEY.format(di_lang=self.DI_LANG, file_name=file_name)
+            data = self.redis_client.get(file_key)
+            if data is None:
+                data = self.get_translation_file_from_cloud(file_name)
+                if data:
+                    # Save new data from cloud storage for caching future requests
+                    self.redis_client.set(
+                        self.TRANSLATION_REDIS_KEY.format(di_lang=self.DI_LANG, file_name=file_name),
+                        data,
+                        ex=self.TRANSLATION_REDIS_TTL_IN_SECONDS,
+                    )
+
+        else:
             data = self.get_translation_file_from_cloud(file_name)
-            if data:
-                # Save new data from cloud storage for caching future requests
-                self.redis_client.set(
-                    self.REDIS_TRANSLATION_KEY.format(di_lang=self.DI_LANG, file_name=file_name),
-                    data,
-                    ex=self.REDIS_TRANSLATION_TTL_IN_SECONDS,
-                )
 
         return data.decode() if isinstance(data, bytes) else data
 
