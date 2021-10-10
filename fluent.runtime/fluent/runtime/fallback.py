@@ -131,7 +131,7 @@ class FluentResourceLoader(AbstractResourceLoader):
     def load_env_vars(self):
         self.DI_LANG = os.environ['DI_LANG']
         self.in_memory = bool(os.environ['TRANSLATION_IN_MEMORY_MODE'])
-        self.TRANSLATION_STATIC_FILES_PATH = os.environ.GET('TRANSLATION_STATIC_FILES_PATH')
+        self.TRANSLATION_STATIC_FILES_PATH = os.environ.get('TRANSLATION_STATIC_FILES_PATH')
 
     def load_in_memnory_env_vars(self):
         self.REDIS_HOST = os.environ['REDIS_HOST']
