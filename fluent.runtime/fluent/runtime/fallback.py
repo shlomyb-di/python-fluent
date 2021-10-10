@@ -131,6 +131,7 @@ class FluentResourceLoader(AbstractResourceLoader):
     def load_env_vars(self):
         self.DI_LANG = os.environ['DI_LANG']
         self.in_memory = bool(os.environ['TRANSLATION_IN_MEMORY_MODE'])
+        self.TRANSLATION_STATIC_FILES_PATH = os.environ.GET('TRANSLATION_STATIC_FILES_PATH')
 
     def load_in_memnory_env_vars(self):
         self.REDIS_HOST = os.environ['REDIS_HOST']
@@ -171,6 +172,6 @@ class FluentResourceLoader(AbstractResourceLoader):
         :return: translation data
         """
         with open(
-            f'deep_translator/static_files/I18N/{self.DI_LANG}/{file_name}', mode="r", encoding="utf-8"
+            f'{self.TRANSLATION_STATIC_FILES_PATH}/{self.DI_LANG}/{file_name}', mode="r", encoding="utf-8"
         ) as ftl_file:
             return ftl_file.read()
