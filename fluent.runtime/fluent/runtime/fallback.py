@@ -3,6 +3,9 @@ import os
 import redis
 
 
+import deep_cloud_storage
+
+
 class FluentLocalization:
     """
     Generic API for Fluent applications.
@@ -101,6 +104,7 @@ class FluentResourceLoader(AbstractResourceLoader):
         self.load_env_vars()
         if self.in_memory is True:
             self.load_in_memnory_env_vars()
+            self.cloud_storage_client = deep_cloud_storage.CloudStorage()
             self.redis_client = redis.client.Redis(
                 host=self.REDIS_HOST, port=self.REDIS_PORT, db=self.REDIS_TRANSLATION_DB
             )
@@ -130,7 +134,7 @@ class FluentResourceLoader(AbstractResourceLoader):
 
     def load_env_vars(self):
         self.DI_LANG = os.environ['DI_LANG']
-        self.in_memory = True if os.environ.get('TRANSLATION_IN_MEMORY_MODE', 'true') == 'true' else False
+        self.in_memory = True if os.environ.get('TRANSLATION_IN_MEMORY_MODE', 'true').lower() == 'true' else False
         self.TRANSLATION_STATIC_FILES_PATH = os.environ.get('TRANSLATION_STATIC_FILES_PATH')
 
     def load_in_memnory_env_vars(self):
@@ -151,7 +155,7 @@ class FluentResourceLoader(AbstractResourceLoader):
             file_key = self.REDIS_TRANSLATION_KEY.format(di_lang=self.DI_LANG, file_name=file_name)
             data = self.redis_client.get(file_key)
             if data is None:
-                data = self.get_translation_file_from_cloud(file_name)
+                data = self.cloud_storage_client.get_translation_file(file_name)
                 if data:
                     # Save new data from cloud storage for caching future requests
                     self.redis_client.set(
@@ -161,7 +165,7 @@ class FluentResourceLoader(AbstractResourceLoader):
                     )
 
         else:
-            data = self.get_translation_file_from_cloud(file_name)
+            data = self.cloud_storage_client.get_translation_file(file_name)
 
         return data.decode() if isinstance(data, bytes) else data
 
