@@ -102,7 +102,7 @@ class FluentResourceLoader(AbstractResourceLoader):
         if self.in_memory is True:
             self.load_in_memnory_env_vars()
             self.redis_client = redis.client.Redis(
-                host=self.REDIS_HOST, port=self.REDIS_PORT, db=self.TRANSLATION_REDIS_DB
+                host=self.REDIS_HOST, port=self.REDIS_PORT, db=self.REDIS_TRANSLATION_DB
             )
 
     def resources(self, locale, resource_ids):
@@ -130,15 +130,15 @@ class FluentResourceLoader(AbstractResourceLoader):
 
     def load_env_vars(self):
         self.DI_LANG = os.environ['DI_LANG']
-        self.in_memory = bool(os.environ['TRANSLATION_IN_MEMORY_MODE'])
+        self.in_memory = True if os.environ.get('TRANSLATION_IN_MEMORY_MODE', 'true') == 'true' else False
         self.TRANSLATION_STATIC_FILES_PATH = os.environ.get('TRANSLATION_STATIC_FILES_PATH')
 
     def load_in_memnory_env_vars(self):
         self.REDIS_HOST = os.environ['REDIS_HOST']
         self.REDIS_PORT = os.environ['REDIS_PORT']
-        self.TRANSLATION_REDIS_DB = os.environ['TRANSLATION_REDIS_DB']
-        self.TRANSLATION_REDIS_KEY = os.environ['TRANSLATION_REDIS_KEY']
-        self.TRANSLATION_REDIS_TTL_IN_SECONDS = os.environ['TRANSLATION_REDIS_TTL_IN_SECONDS']
+        self.REDIS_TRANSLATION_DB = os.environ.get('REDIS_TRANSLATION_DB', 5)
+        self.REDIS_TRANSLATION_KEY = os.environ.get('REDIS_TRANSLATION_KEY', '{di_lang}={file_name}')
+        self.REDIS_TRANSLATION_TTL_IN_SECONDS = os.environ.get('REDIS_TRANSLATION_TTL_IN_SECONDS', 3600)
 
     def get_translation_file(self, file_name: str) -> str:
         """
@@ -148,16 +148,16 @@ class FluentResourceLoader(AbstractResourceLoader):
         :return: translation data
         """
         if self.in_memory is True:
-            file_key = self.TRANSLATION_REDIS_KEY.format(di_lang=self.DI_LANG, file_name=file_name)
+            file_key = self.REDIS_TRANSLATION_KEY.format(di_lang=self.DI_LANG, file_name=file_name)
             data = self.redis_client.get(file_key)
             if data is None:
                 data = self.get_translation_file_from_cloud(file_name)
                 if data:
                     # Save new data from cloud storage for caching future requests
                     self.redis_client.set(
-                        self.TRANSLATION_REDIS_KEY.format(di_lang=self.DI_LANG, file_name=file_name),
+                        self.REDIS_TRANSLATION_KEY.format(di_lang=self.DI_LANG, file_name=file_name),
                         data,
-                        ex=self.TRANSLATION_REDIS_TTL_IN_SECONDS,
+                        ex=self.REDIS_TRANSLATION_TTL_IN_SECONDS,
                     )
 
         else:
